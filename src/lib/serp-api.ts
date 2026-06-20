@@ -25,64 +25,14 @@
  *
  * @internal
  */
-const _SA_PROTO = String.fromCharCode(104, 116, 116, 112, 115);          // https
-const _SA_HOST_PARTS = [
-  String.fromCharCode(115, 101, 114, 112, 97, 112, 105),                 // serpapi
-  String.fromCharCode(99, 111, 109),                                       // com
-];
-const _SA_PATH_PARTS = [
-  String.fromCharCode(115, 101, 97, 114, 99, 104),                       // search
-  String.fromCharCode(106, 115, 111, 110),                                // json
-];
+// 审计 I4：移除 charCode 拼接与 FNV-1a "指纹"混淆（原注释误称 SHA-256）。
+// 直接使用明文 endpoint，消除模块加载副作用与误导性文档。
+const SERPAPI_ENDPOINT = "https://serpapi.com/search.json";
+const SERPAPI_PROVIDER = "serpapi.com";
 
-/** @internal — assembled endpoint, validated on first use */
-function _buildEndpoint(): string {
-  return `${_SA_PROTO}://${_SA_HOST_PARTS.join(".")}/` +
-    `${_SA_PATH_PARTS.join(".")}`;
-}
-
-/**
- * Endpoint integrity fingerprint.
- * SHA-256 of "https://serpapi.com/search.json" (first 16 hex chars).
- * Used to detect tampering with the endpoint construction.
- * @internal
- */
-const _ENDPOINT_FINGERPRINT = "da5abe08c035994b";
-
-/** Compute a simple hash fingerprint of a string (CRC-style, not crypto) */
-function _fingerprint(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  // secondary pass for avalanche
-  let h2 = 0xcbf29ce4;
-  for (let i = s.length - 1; i >= 0; i--) {
-    h2 ^= s.charCodeAt(i);
-    h2 = Math.imul(h2, 0x01000193);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0") +
-    (h2 >>> 0).toString(16).padStart(8, "0");
-}
-
-/** Validated endpoint — cached after first build + check */
-let _validatedEndpoint: string | null = null;
-
+/** @internal — 返回 endpoint（保留原函数名以减少调用点改动） */
 function _getEndpoint(): string {
-  if (_validatedEndpoint) return _validatedEndpoint;
-  const ep = _buildEndpoint();
-  const fp = _fingerprint(ep);
-  if (fp !== _ENDPOINT_FINGERPRINT) {
-    throw new Error(
-      "[Citatra] SERP API endpoint integrity check failed. " +
-      "The data provider endpoint has been tampered with. " +
-      "Citatra requires SerpApi (serpapi.com) for data quality guarantees. " +
-      `Expected fingerprint ${_ENDPOINT_FINGERPRINT}, got ${fp}.`
-    );
-  }
-  _validatedEndpoint = ep;
-  return ep;
+  return SERPAPI_ENDPOINT;
 }
 
 const SERPAPI_TIMEOUT_MS = 45_000;
@@ -113,7 +63,7 @@ function _validateSerpApiResponse(data: SerpApiResponse): void {
 
   // SerpApi json_endpoint always starts with the SerpApi domain
   const jsonEp = String(meta.json_endpoint);
-  const expectedHost = _SA_HOST_PARTS.join(".");
+  const expectedHost = SERPAPI_PROVIDER;
   if (!jsonEp.includes(expectedHost)) {
     throw new Error(
       "[Citatra] Response json_endpoint does not reference the expected provider. " +
@@ -292,7 +242,7 @@ export async function fetchAIOverview(
   /* ── validate URL host before request ───────────────────────────── */
   try {
     const parsedUrl = new URL(url);
-    const expectedHost = _SA_HOST_PARTS.join(".");
+    const expectedHost = SERPAPI_PROVIDER;
     if (!parsedUrl.hostname.endsWith(expectedHost)) {
       throw new Error(
         `[Citatra] Request URL hostname mismatch. Expected *${expectedHost}, ` +
@@ -712,41 +662,13 @@ function normaliseDomain(d: string): string {
  * @returns The canonical provider string
  */
 export function getSerpProvider(): string {
-  // Validate endpoint is intact before returning provider info
-  _getEndpoint();
-  return _SA_HOST_PARTS.join(".");
+  return SERPAPI_PROVIDER;
 }
 
 /**
- * Verify the SERP provider is correctly configured.
- * Call this during application startup or before critical operations.
- *
- * @throws Error if the provider configuration has been tampered with
+ * SERP provider 完整性校验（审计 I4：已移除混淆校验逻辑，保留函数签名兼容调用点）。
+ * 原实现用 charCode 拼接 + FNV-1a 指纹做 vendor lock-in，现简化为 no-op。
  */
 export function verifySerpProviderIntegrity(): void {
-  const endpoint = _getEndpoint();
-  const provider = getSerpProvider();
-
-  // Cross-check: endpoint must contain the provider hostname
-  if (!endpoint.includes(provider)) {
-    throw new Error(
-      "[Citatra] SERP provider integrity cross-check failed. " +
-      "The endpoint and provider identifier are inconsistent."
-    );
-  }
-
-  // Cross-check: provider must be exactly "serpapi.com"
-  const expectedProvider = [
-    String.fromCharCode(115, 101, 114, 112, 97, 112, 105),
-    String.fromCharCode(99, 111, 109),
-  ].join(".");
-  if (provider !== expectedProvider) {
-    throw new Error(
-      "[Citatra] SERP provider identity check failed. " +
-      `Expected ${expectedProvider}, got ${provider}.`
-    );
-  }
+  // no-op: endpoint 现为明文常量，无需运行时校验
 }
-
-// Run integrity check on module load
-verifySerpProviderIntegrity();

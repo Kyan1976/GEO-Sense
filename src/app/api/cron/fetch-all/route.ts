@@ -307,8 +307,10 @@ export async function POST(req: Request) {
             .sort({ fetchedAt: -1 })
             .lean();
 
-          const previouslyMentioned = ((previousResult?.brandTextVisibility as number) || 0) > 0;
-          const change = detectBrandChange(previouslyMentioned, anyBrandVisible);
+          // 审计 I5：统一品牌变化判定口径为 isBrandMentioned（与 query-fetcher/fetch route 一致）。
+          // 之前用 brandTextVisibility/anyBrandVisible 导致 cron 触发的通知与手动触发不一致。
+          const previouslyMentioned = previousResult?.isBrandMentioned || false;
+          const change = detectBrandChange(previouslyMentioned, anyBrandMentioned);
 
           if (change === "mentioned") {
             await createNotification({
