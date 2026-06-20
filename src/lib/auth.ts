@@ -63,18 +63,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
-      // 初次登录：写入 userId + activeWorkspaceId + 改密时间戳
       if (user) {
         token.id = user.id;
-        // 审计 I2：登录时查一次 workspace，写入 token（避免每次 session 读取都查 DB）
-        await connectToDatabase();
-        const membership = await Membership.findOne({
-          userId: user.id,
-        }).sort({ createdAt: 1 });
-        if (membership) {
-          token.activeWorkspaceId = membership.workspaceId.toString();
-        }
-        // 审计 I3：记录改密时间，用于后续 token 旋转校验
+        // 审计 I3：记录改密时间，用于 token 旋转校验
         const pwdChanged = (user as { passwordChangedAt?: Date }).passwordChangedAt;
         if (pwdChanged) {
           token.passwordChangedAt = pwdChanged.getTime();
@@ -85,21 +76,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        // 审计 I2：直接从 token 读 activeWorkspaceId，避免每请求查库
-        // token 缺失（老 token 兼容）时回查一次并隐式依赖下次登录刷新
-        let activeWs = token.activeWorkspaceId as string | undefined;
-        if (!activeWs && token.id) {
-          await connectToDatabase();
-          const membership = await Membership.findOne({
-            userId: token.id as string,
-          }).sort({ createdAt: 1 });
-          if (membership) {
-            activeWs = membership.workspaceId.toString();
-          }
-        }
-        // 审计 I-session：已通过 next-auth.d.ts 声明 Session.activeWorkspaceId，无需 as any
-        if (activeWs) {
-          session.activeWorkspaceId = activeWs;
+        // 每请求查 activeWorkspaceId（回退 I2：jwt 下沉导致 activeWorkspaceId 未正确传播）
+        await connectToDatabase();
+        const membership = await Membership.findOne({
+          userId: token.id as string,
+        }).sort({ createdAt: 1 });
+        if (membership) {
+          session.activeWorkspaceId = membership.workspaceId.toString();
         }
       }
       return session;
