@@ -106,4 +106,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  // IP/自定义域名访问必须信任 host（NextAuth v5 默认只信任 localhost/官方域名）
+  trustHost: true,
 });
