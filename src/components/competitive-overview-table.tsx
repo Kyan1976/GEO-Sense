@@ -39,7 +39,9 @@ export function CompetitiveOverviewTable({ workspaceId }: { workspaceId: string 
         setData(json);
         setVisibleEntities(new Set(json.entities.map((e: any) => e.key)));
       }
-    } catch {}
+    } catch (err) {
+      console.error(`[CompetitiveOverviewTable] load failed for ${workspaceId}:`, err);
+    }
     finally { setLoading(false); }
   }, [workspaceId, days]);
 

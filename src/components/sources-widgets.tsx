@@ -19,7 +19,10 @@ export function SourceDomainsWidget({ workspaceId }: { workspaceId: string }) {
         const data = await res.json();
         if (!mounted) return;
         setDomains(data.domains || []);
-      } catch {}
+      } catch (err) {
+        // 审计 I7：不再静默吞错，记录到 console 便于排障
+        console.error(`[SourceDomainsWidget] load failed for ${workspaceId}:`, err);
+      }
       finally { if (mounted) setLoading(false); }
     })();
     return () => { mounted = false; };
@@ -84,7 +87,9 @@ export function SourceTypeDistributionWidget({ workspaceId }: { workspaceId: str
         // attach fills based on color palette
         const withFill = arr.map((entry: any, i: number) => ({ ...entry, fill: colors[i % colors.length] }));
         setPieData(withFill);
-      } catch {}
+      } catch (err) {
+        console.error(`[SourceTypeDistributionWidget] load failed for ${workspaceId}:`, err);
+      }
       finally { /* noop */ }
     })();
     return () => { mounted = false; };

@@ -41,8 +41,8 @@ export function CompetitiveOverviewChart({ workspaceId }: { workspaceId: string 
         setData(json);
         setVisibleEntities(new Set(json.entities.map((e: any) => e.key)));
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error(`[CompetitiveOverviewChart] load failed for ${workspaceId}:`, err);
     } finally {
       setLoading(false);
     }

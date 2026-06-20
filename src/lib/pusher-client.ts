@@ -24,6 +24,11 @@ function getOrCreatePusherClient(
 
   pusherClient = new PusherClient(key, {
     cluster,
+    // 私有频道授权：订阅 private-* 频道前由 /api/pusher/auth 校验 session+Membership（审计 C2）
+    channelAuthorization: {
+      endpoint: "/api/pusher/auth",
+      transport: "ajax",
+    },
   });
 
   return pusherClient;
@@ -51,7 +56,8 @@ export function usePusherWorkspace(
     const client = getOrCreatePusherClient(key, cluster);
     if (!client) return; // Pusher not configured
 
-    const channelName = `workspace-${workspaceId}`;
+    // 私有频道：private- 前缀触发 channelAuthorization 流程（审计 C2）
+    const channelName = `private-workspace-${workspaceId}`;
     const channel = client.subscribe(channelName);
     channelRef.current = channel;
 

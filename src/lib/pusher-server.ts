@@ -9,7 +9,7 @@ import Pusher from "pusher";
 
 let pusherInstance: Pusher | null = null;
 
-function getPusher(): Pusher | null {
+export function getPusher(): Pusher | null {
   if (pusherInstance) return pusherInstance;
 
   const appId = process.env.PUSHER_APP_ID;
@@ -34,7 +34,8 @@ function getPusher(): Pusher | null {
 }
 
 /**
- * Channel naming: `workspace-{workspaceId}`
+ * Channel naming: `private-workspace-{workspaceId}` (private channel, 审计 C2)
+ * 订阅需经 /api/pusher/auth 校验 Membership 后签发授权签名。
  * Events:
  *   - `query:fetched`   — new AI Overview data for a query
  *   - `query:created`   — new query added
@@ -61,7 +62,7 @@ export async function triggerEvent(
   if (!pusher) return; // Real-time not configured — silently skip
 
   try {
-    await pusher.trigger(`workspace-${workspaceId}`, event, data);
+    await pusher.trigger(`private-workspace-${workspaceId}`, event, data);
   } catch (error) {
     console.error(`Pusher trigger error (${event}):`, error);
     // Don't throw — real-time is a nice-to-have, not critical

@@ -43,7 +43,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    const targetMembership = await Membership.findById(memberId);
+    // 复合过滤 _id + workspaceId，防止跨租户越权（审计 C1）
+    const targetMembership = await Membership.findOne({ _id: memberId, workspaceId });
     if (!targetMembership) {
       return NextResponse.json(
         { error: "Member not found" },
@@ -117,7 +118,8 @@ export async function DELETE(
       );
     }
 
-    const targetMembership = await Membership.findById(memberId);
+    // 复合过滤 _id + workspaceId，防止跨租户越权（审计 C1）
+    const targetMembership = await Membership.findOne({ _id: memberId, workspaceId });
     if (!targetMembership) {
       return NextResponse.json(
         { error: "Member not found" },
@@ -133,7 +135,7 @@ export async function DELETE(
       );
     }
 
-    await Membership.findByIdAndDelete(memberId);
+    await Membership.findOneAndDelete({ _id: memberId, workspaceId });
 
     return NextResponse.json({ message: "Member removed" });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { connectToDatabase } from "@/lib/mongodb";
 import Query from "@/models/Query";
 import TrackingResult from "@/models/TrackingResult";
@@ -36,22 +37,20 @@ const BATCH_DELAY = 2000;
  */
 export async function POST(req: Request) {
   try {
-    // Verify cron secret
+    // 鉴权加固（审计 C3）：强制 CRON_SECRET，所有环境一致；timingSafeEqual 防时序侧信道
     const authHeader = req.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret) {
-      const token = authHeader?.replace("Bearer ", "");
-      if (token !== cronSecret) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-    } else if (process.env.NODE_ENV === "production") {
+    if (!cronSecret) {
       return NextResponse.json(
         { error: "CRON_SECRET not configured" },
         { status: 500 }
       );
     }
-    // In development, allow without secret for testing
+    const token = authHeader?.replace("Bearer ", "") ?? "";
+    // 长度不等直接拒绝，避免 timingSafeEqual 抛错
+    if (token.length !== cronSecret.length || !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(cronSecret))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // Verify SERP provider integrity before batch processing
     verifySerpProviderIntegrity();
